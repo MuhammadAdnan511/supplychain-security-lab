@@ -1,0 +1,66 @@
+name: DevSecOps Supply Chain Security
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    # -----------------------------
+    # Install Node Dependencies
+    # -----------------------------
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install Dependencies
+      run: npm install
+
+    # -----------------------------
+    # Generate SBOM using Syft
+    # -----------------------------
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        path: .
+        format: cyclonedx-json
+        output-file: sbom.json
+
+    # -----------------------------
+    # Run Trivy Scan
+    # -----------------------------
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        severity: 'CRITICAL,HIGH'
+
+    # -----------------------------
+    # Run Grype Scan
+    # -----------------------------
+    - name: Run Grype Scan
+      uses: anchore/scan-action@v6
+      with:
+        path: "."
+        fail-build: true
+        severity-cutoff: high
+
+    # -----------------------------
+    # Upload Reports
+    # -----------------------------
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports
+        path: |
+          sbom.json
